@@ -8,7 +8,7 @@ RUN a2enmod rewrite
 WORKDIR /var/www/html
 
 # Copiar el proyecto completo al contenedor
-COPY . /var/www/html
+COPY --chown=www-data:www-data . /var/www/html
 
 # Copiar uploads.ini
 COPY uploads.ini /usr/local/etc/php/conf.d/uploads.ini

@@ -97,6 +97,8 @@ class CatalogImporter {
      * @return array      [seriesInsertadas, temporadasInsertadas, episodiosInsertados]
      */
     public static function importSeries(PDO $pdo, array $data): array {
+        $pdo->exec("DELETE FROM episodes");
+        $pdo->exec("DELETE FROM seasons");
         $pdo->exec("DELETE FROM series");
 
         $stmtSeries = $pdo->prepare(

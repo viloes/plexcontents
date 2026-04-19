@@ -17,6 +17,8 @@ class DB {
                 self::$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
                 // Por defecto, devolver resultados como arrays asociativos
                 self::$pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+                // En SQLite, las FK no se aplican si no se activa este PRAGMA por conexión.
+                self::$pdo->exec('PRAGMA foreign_keys = ON');
                 Logger::info('Database connection established');
             } catch (PDOException $e) {
                 Logger::error('Database connection error', ['error' => $e->getMessage()]);

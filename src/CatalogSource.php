@@ -49,7 +49,11 @@ class CatalogSource {
             return ['error' => getLangMessage('error_catalog_folder_required')];
         }
 
-        if ($folderName !== basename($folderName) || preg_match('/[\\\/]/', $folderName)) {
+        if (
+            $folderName !== basename($folderName)
+            || str_contains($folderName, '/')
+            || str_contains($folderName, '\\')
+        ) {
             return ['error' => getLangMessage('error_catalog_folder_invalid')];
         }
 
