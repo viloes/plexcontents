@@ -5,8 +5,12 @@ COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 # Habilitar mod_rewrite para URLs limpias (opcional)
 RUN a2enmod rewrite
 
-# Copiar archivos de la aplicación al contenedor
 WORKDIR /var/www/html
+
+# Copiar el proyecto completo al contenedor
+COPY . /var/www/html
+
+# Copiar uploads.ini
 COPY uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 
 # Crear directorio para las imágenes exportadas de Tautulli
