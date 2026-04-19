@@ -4,3 +4,4 @@
 tautulli-exports/*
 .git/
 .env
+*.backup
