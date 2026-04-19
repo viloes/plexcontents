@@ -6,12 +6,46 @@ class Logger {
     private const LEVEL_DEBUG = 10;
     private const LEVEL_INFO = 20;
     private const LEVEL_ERROR = 30;
+    private const DEFAULT_MAX_SIZE_BYTES = 10485760;
+    private const DEFAULT_MAX_FILES = 5;
 
     private static $initialized = false;
     private static $activeLevel = self::LEVEL_DEBUG;
-    private static $logPath = '/storage/log/plexcontents.log';
-    private static $maxSizeBytes = 10485760;
-    private static $maxFiles = 5;
+    private static $logPath = '';
+    private static $maxSizeBytes = self::DEFAULT_MAX_SIZE_BYTES;
+    private static $maxFiles = self::DEFAULT_MAX_FILES;
+
+    private static function getDefaultLogPath(): string {
+        return __DIR__ . '/../storage/log/plexcontents.log';
+    }
+
+    private static function callWithoutWarning(callable $callback, ?string &$warning = null) {
+        $warning = null;
+
+        set_error_handler(static function (int $severity, string $message) use (&$warning): bool {
+            $warning = $message;
+            return true;
+        });
+
+        try {
+            return $callback();
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    private static function reportInternalError(string $message, array $context = []): void {
+        $line = '[plexcontents-logger] ' . $message;
+
+        if (!empty($context)) {
+            $encoded = json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if ($encoded !== false) {
+                $line .= ' ' . $encoded;
+            }
+        }
+
+        error_log($line);
+    }
 
     private static function init(): void {
         if (self::$initialized) {
@@ -25,7 +59,14 @@ class Logger {
 
         $logPath = Config::get('LOG_PATH');
         if (!empty($logPath)) {
-            self::$logPath = $logPath;
+            self::$logPath = trim((string) $logPath);
+        }
+
+        if (self::$logPath === '') {
+            self::$logPath = self::getDefaultLogPath();
+            self::reportInternalError('LOG_PATH is empty, using default path', [
+                'default_path' => self::$logPath,
+            ]);
         }
 
         $maxSizeMb = Config::get('LOG_MAX_SIZE_MB');
@@ -60,7 +101,7 @@ class Logger {
     private static function parseMaxSize($sizeMb): int {
         $numeric = (int) $sizeMb;
         if ($numeric < 1) {
-            return 10485760;
+            return self::DEFAULT_MAX_SIZE_BYTES;
         }
         return $numeric * 1024 * 1024;
     }
@@ -68,9 +109,63 @@ class Logger {
     private static function parseMaxFiles($maxFiles): int {
         $numeric = (int) $maxFiles;
         if ($numeric < 1) {
-            return 5;
+            return self::DEFAULT_MAX_FILES;
         }
         return $numeric;
+    }
+
+    private static function canUseLogPath(string $path): bool {
+        $dir = dirname($path);
+        if ($dir === '' || $dir === '.') {
+            self::reportInternalError('Resolved log directory is invalid', [
+                'log_path' => $path,
+            ]);
+            return false;
+        }
+
+        if (!is_dir($dir)) {
+            $warning = null;
+            $created = self::callWithoutWarning(static function () use ($dir) {
+                return mkdir($dir, 0775, true);
+            }, $warning);
+
+            if (!$created && !is_dir($dir)) {
+                self::reportInternalError('Failed to create log directory', [
+                    'directory' => $dir,
+                    'log_path' => $path,
+                    'warning' => $warning,
+                ]);
+                return false;
+            }
+        }
+
+        if (!is_writable($dir)) {
+            self::reportInternalError('Log directory is not writable', [
+                'directory' => $dir,
+                'log_path' => $path,
+            ]);
+            return false;
+        }
+
+        return true;
+    }
+
+    private static function activateFallbackLogPath(string $failedPath): bool {
+        $fallbackPath = self::getDefaultLogPath();
+        if ($fallbackPath === $failedPath) {
+            return false;
+        }
+
+        if (!self::canUseLogPath($fallbackPath)) {
+            return false;
+        }
+
+        self::reportInternalError('Primary log path unavailable, using fallback path', [
+            'failed_path' => $failedPath,
+            'fallback_path' => $fallbackPath,
+        ]);
+        self::$logPath = $fallbackPath;
+        return true;
     }
 
     private static function rotateIfNeeded(): void {
@@ -78,25 +173,47 @@ class Logger {
             return;
         }
 
-        $currentSize = @filesize(self::$logPath);
+        $currentSize = filesize(self::$logPath);
         if ($currentSize === false || $currentSize < self::$maxSizeBytes) {
             return;
         }
 
         $oldest = self::$logPath . '.' . self::$maxFiles;
         if (file_exists($oldest)) {
-            @unlink($oldest);
+            if (!unlink($oldest)) {
+                self::reportInternalError('Failed to delete oldest rotated log', [
+                    'path' => $oldest,
+                ]);
+            }
         }
 
         for ($i = self::$maxFiles - 1; $i >= 1; $i--) {
             $source = self::$logPath . '.' . $i;
             $target = self::$logPath . '.' . ($i + 1);
             if (file_exists($source)) {
-                @rename($source, $target);
+                if (!rename($source, $target)) {
+                    self::reportInternalError('Failed to rotate log file', [
+                        'source' => $source,
+                        'target' => $target,
+                    ]);
+                }
             }
         }
 
-        @rename(self::$logPath, self::$logPath . '.1');
+        if (!rename(self::$logPath, self::$logPath . '.1')) {
+            self::reportInternalError('Failed to move active log during rotation', [
+                'source' => self::$logPath,
+                'target' => self::$logPath . '.1',
+            ]);
+        }
+    }
+
+    private static function ensureLogDirectory(): bool {
+        if (self::canUseLogPath(self::$logPath)) {
+            return true;
+        }
+
+        return self::activateFallbackLogPath(self::$logPath);
     }
 
     private static function write(string $levelName, int $level, string $message, array $context = []): void {
@@ -104,9 +221,8 @@ class Logger {
             return;
         }
 
-        $dir = dirname(self::$logPath);
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0775, true);
+        if (!self::ensureLogDirectory()) {
+            return;
         }
 
         self::rotateIfNeeded();
@@ -122,7 +238,32 @@ class Logger {
         }
 
         $line .= PHP_EOL;
-        @file_put_contents(self::$logPath, $line, FILE_APPEND | LOCK_EX);
+        $warning = null;
+        $result = self::callWithoutWarning(static function () use ($line) {
+            return file_put_contents(self::$logPath, $line, FILE_APPEND | LOCK_EX);
+        }, $warning);
+        if ($result === false) {
+            self::reportInternalError('Failed to write log entry', [
+                'log_path' => self::$logPath,
+                'level' => $levelName,
+                'warning' => $warning,
+            ]);
+
+            if (self::activateFallbackLogPath(self::$logPath)) {
+                $retryWarning = null;
+                $retryResult = self::callWithoutWarning(static function () use ($line) {
+                    return file_put_contents(self::$logPath, $line, FILE_APPEND | LOCK_EX);
+                }, $retryWarning);
+
+                if ($retryResult === false) {
+                    self::reportInternalError('Failed to write log entry on fallback path', [
+                        'log_path' => self::$logPath,
+                        'level' => $levelName,
+                        'warning' => $retryWarning,
+                    ]);
+                }
+            }
+        }
     }
 
     public static function debug(string $message, array $context = []): void {

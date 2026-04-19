@@ -26,7 +26,7 @@ body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg-color
 .form-card { background: var(--surface); padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1rem; }
 
 /* Grid de Catálogo */
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; }
 .card { background: var(--surface); border-radius: 0.5rem; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s; }
 .card:hover { transform: translateY(-4px); }
 .card-img { width: 100%; height: 300px; object-fit: cover; background: #ddd; }

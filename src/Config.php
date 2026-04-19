@@ -7,6 +7,27 @@ class Config {
     private static $loaded = false;
     private static $values = [];
 
+    private static function getEnvironmentValue(string $key, bool &$found) {
+        $value = getenv($key);
+        if ($value !== false) {
+            $found = true;
+            return $value;
+        }
+
+        if (array_key_exists($key, $_ENV)) {
+            $found = true;
+            return $_ENV[$key];
+        }
+
+        if (array_key_exists($key, $_SERVER)) {
+            $found = true;
+            return $_SERVER[$key];
+        }
+
+        $found = false;
+        return null;
+    }
+
     private static function load(): void {
         if (self::$loaded) {
             return;
@@ -25,6 +46,13 @@ class Config {
 
     public static function get(string $key, $default = null) {
         self::load();
+
+        $found = false;
+        $value = self::getEnvironmentValue($key, $found);
+        if ($found) {
+            return $value;
+        }
+
         return self::$values[$key] ?? $default;
     }
 }
