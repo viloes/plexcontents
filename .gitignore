@@ -1,0 +1,9 @@
+/storage/log/**
+!/storage/log/**/
+!/storage/log/**/.gitkeep
+/data/**
+!/data/**/
+!/data/**/.gitkeep
+tautulli-exports/*
+.git/
+.env

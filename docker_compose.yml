@@ -1,0 +1,23 @@
+services:
+  web:
+    image: viloes/plexcontents:latest
+    container_name: plexcontents
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      EXPORT_ROOT: /var/www/html/tautulli-exports
+      LOG_LEVEL: DEBUG
+      LOG_PATH: /storage/log/plexcontents.log
+      LOG_MAX_SIZE_MB: "10"
+      LOG_MAX_FILES: "5"
+    volumes:
+      - ./data:/var/www/html/data
+      - ./storage/log:/storage/log
+      - ./tautulli-exports:/var/www/html/tautulli-exports:ro
+    healthcheck:
+      test: ["CMD-SHELL", "php -v >/dev/null 2>&1 && curl -fsS http://localhost/login.php >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
