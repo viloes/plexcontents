@@ -246,6 +246,17 @@ if ($error) {
         <hr class="my-4">
 
         <div class="form-card">
+            <h2 class="h5 mb-3"><?= $lang['tautulli_instructions_title'] ?></h2>
+            <ol class="mb-0">
+                <li><?= $lang['tautulli_step_1'] ?></li>
+                <li><?= $lang['tautulli_step_2'] ?></li>
+                <li><?= $lang['tautulli_step_3'] ?></li>
+            </ol>
+        </div>
+
+        <hr class="my-4">
+
+        <div class="form-card">
             <h2 class="h5 mb-3"><?= $lang['catalog_sources'] ?></h2>
             <p class="text-secondary mb-3"><?= $lang['catalog_source_help'] ?></p>
             <div class="mb-3">
